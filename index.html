@@ -39,6 +39,8 @@ button:hover{opacity:.85}
 .pin{font-size:26px;line-height:1;position:relative}
 .pin b{position:absolute;top:-6px;right:-10px;background:var(--ac);color:#fff;font:600 11px system-ui;border-radius:9px;padding:1px 5px}
 .hint{color:var(--mu);font-size:12px;margin-bottom:14px}
+#minimap{height:420px}
+#minimap.tall{height:75vh}
 @media(max-width:700px){body{flex-direction:column;height:auto}aside{width:100%;border:0}}
 </style>
 </head>
@@ -68,8 +70,8 @@ button:hover{opacity:.85}
       <button id="del">Xóa địa điểm</button></div>
     <div class="row" id="info"><input id="ph" type="tel" placeholder="Số điện thoại" style="max-width:220px"><input id="nt" placeholder="Ghi chú (tên khách, nhu cầu...)" style="flex:1;min-width:200px"></div>
     <div id="mapbox">
-      <div class="row" style="margin-bottom:8px"><input id="mq" placeholder="Địa chỉ để tìm trên bản đồ (bỏ trống = dùng tên địa điểm)" style="flex:1;min-width:220px"><button id="find">🔍 Tìm vị trí</button><button id="gm">Chỉ đường (Google Maps)</button></div>
-      <div id="minimap" class="map" style="height:240px"></div>
+      <div class="row" style="margin-bottom:8px"><input id="mq" placeholder="Địa chỉ để tìm trên bản đồ (bỏ trống = dùng tên địa điểm)" style="flex:1;min-width:220px"><button id="find">🔍 Tìm vị trí</button><button id="gm">Chỉ đường (Google Maps)</button><button id="tg">⤢ Phóng to</button></div>
+      <div id="minimap" class="map"></div>
       <div id="mhint" class="hint"></div>
     </div>
     <div id="drop">Dán ảnh (Ctrl+V), kéo thả ảnh vào đây, hoặc <button id="file">chọn ảnh</button></div>
@@ -277,7 +279,7 @@ function showMini(X){
    miniMark=LF.marker([X.lat,X.lng],{draggable:true,icon:pinIcon(0)}).addTo(mini);
    miniMark.on('dragend',async()=>{const q=miniMark.getLatLng();await setPos(X,q.lat,q.lng)});
    mini.setView([X.lat,X.lng],X.parent?14:9);
-  }else{const P=PA(X);if(P&&hasLL(P))mini.setView([P.lat,P.lng],10);else mini.setView([16,106],5)}
+  }else{const P=PA(X);if(P&&hasLL(P))mini.setView([P.lat,P.lng],10);else mini.setView([16,106],mini.getSize().y>=620?6:5)}
  },0);
 }
 function showBig(){
@@ -312,6 +314,7 @@ $('find').onclick=async()=>{
   if(!p.exact)$('mhint').textContent='Chỉ tìm được vị trí gần đúng ('+p.matched+'). Hãy kéo ghim đến đúng chỗ.';
  }catch(e){$('mhint').textContent=ERRMSG(e)}
 };
+$('tg').onclick=()=>{const m=$('minimap');m.classList.toggle('tall');$('tg').textContent=m.classList.contains('tall')?'⤡ Thu nhỏ':'⤢ Phóng to';const X=findL(cur);if(X&&X.id!=='none')showMini(X)};
 $('gm').onclick=()=>{
  const X=findL(cur);if(!X||X.id==='none')return;
  const u=hasLL(X)?'https://www.google.com/maps/dir/?api=1&destination='+X.lat+','+X.lng:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(qFor(X)+', Việt Nam');
