@@ -5,10 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lưu ảnh theo địa điểm</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E📍%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
 :root{--bg:#f6f5f1;--card:#fff;--tx:#222;--mu:#777;--ac:#c2410c;--bd:#e3e0d8}
 @media(prefers-color-scheme:dark){:root{--bg:#1c1b19;--card:#262522;--tx:#eee;--mu:#999;--ac:#fb923c;--bd:#3a3834}}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{margin:0;font:15px system-ui,sans-serif;background:var(--bg);color:var(--tx);height:100vh;display:flex}
 aside{width:260px;border-right:1px solid var(--bd);padding:14px;display:flex;flex-direction:column;gap:10px;overflow:auto}
 main{flex:1;padding:18px;overflow:auto}
@@ -31,12 +34,18 @@ button:hover{opacity:.85}
 .it span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .it button{padding:2px 7px;font-size:12px}
 #st{color:var(--mu);font-size:13px}
+.map{border:1px solid var(--bd);border-radius:12px;overflow:hidden;background:var(--card);margin-bottom:6px}
+.pinwrap{background:none;border:0}
+.pin{font-size:26px;line-height:1;position:relative}
+.pin b{position:absolute;top:-6px;right:-10px;background:var(--ac);color:#fff;font:600 11px system-ui;border-radius:9px;padding:1px 5px}
+.hint{color:var(--mu);font-size:12px;margin-bottom:14px}
 @media(max-width:700px){body{flex-direction:column;height:auto}aside{width:100%;border:0}}
 </style>
 </head>
 <body>
 <aside>
   <h1>Địa điểm</h1>
+  <div style="display:flex;gap:6px"><button id="vp" class="p" style="flex:1">📷 Xem ảnh</button><button id="vm" style="flex:1">🗺 Bản đồ chung</button></div>
   <div style="display:flex;gap:6px"><input id="nl" placeholder="Tỉnh / địa điểm mới (vd: Hưng Yên)"><button class="p" id="add">+</button></div>
   <div id="locs"></div>
   <hr style="width:100%;border:0;border-top:1px solid var(--bd)">
@@ -46,6 +55,11 @@ button:hover{opacity:.85}
 </aside>
 <main>
   <div id="empty"></div>
+  <div id="ovw" hidden>
+    <div class="row"><h1 style="flex:1">Bản đồ các địa điểm</h1><button id="geoall">Tìm vị trí cho tất cả</button></div>
+    <div id="bigmap" class="map" style="height:65vh"></div>
+    <div id="nopos" class="hint"></div>
+  </div>
   <div id="work" hidden>
     <div class="row"><h1 id="tt" style="flex:1"></h1>
       <button id="sub" class="p">+ Địa chỉ cụ thể</button>
@@ -53,6 +67,11 @@ button:hover{opacity:.85}
       <button id="ren">Đổi tên</button>
       <button id="del">Xóa địa điểm</button></div>
     <div class="row" id="info"><input id="ph" type="tel" placeholder="Số điện thoại" style="max-width:220px"><input id="nt" placeholder="Ghi chú (tên khách, nhu cầu...)" style="flex:1;min-width:200px"></div>
+    <div id="mapbox">
+      <div class="row" style="margin-bottom:8px"><input id="mq" placeholder="Địa chỉ để tìm trên bản đồ (bỏ trống = dùng tên địa điểm)" style="flex:1;min-width:220px"><button id="find">🔍 Tìm vị trí</button><button id="gm">Chỉ đường (Google Maps)</button></div>
+      <div id="minimap" class="map" style="height:240px"></div>
+      <div id="mhint" class="hint"></div>
+    </div>
     <div id="drop">Dán ảnh (Ctrl+V), kéo thả ảnh vào đây, hoặc <button id="file">chọn ảnh</button></div>
     <div id="grid"></div>
   </div>
@@ -60,7 +79,9 @@ button:hover{opacity:.85}
 <input type="file" id="fi" accept="image/*" multiple hidden>
 <script>
 const $=id=>document.getElementById(id);
-let db,locs=[],imgs=[],cur='none',dir=null;
+let db,locs=[],imgs=[],cur='none',dir=null,view='photos';
+const LF=window.L;
+const hasLL=X=>typeof X.lat==='number'&&typeof X.lng==='number';
 const NONE={id:'none',name:'Chưa có địa điểm'};
 const findL=id=>id==='none'?NONE:locs.find(l=>l.id===id);
 const PA=L=>L.parent&&findL(L.parent);
@@ -82,27 +103,52 @@ async function load(){
  locs.sort((a,b)=>a.t-b.t);cur='none';draw();
 }
 const count=id=>imgs.filter(i=>i.loc===id).length;
+const thumbs=new Map();
+function thumbURL(i){
+ if(thumbs.has(i.id))return thumbs.get(i.id);
+ const p=(async()=>{
+  try{
+   const bm=await createImageBitmap(i.blob);const r=Math.min(1,320/bm.width);
+   const c=document.createElement('canvas');c.width=Math.max(1,Math.round(bm.width*r));c.height=Math.max(1,Math.round(bm.height*r));
+   c.getContext('2d').drawImage(bm,0,0,c.width,c.height);if(bm.close)bm.close();
+   return c.toDataURL('image/webp',0.85);
+  }catch(e){
+   return new Promise(res=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=()=>res('');fr.readAsDataURL(i.blob)});
+  }
+ })();
+ thumbs.set(i.id,p);return p;
+}
+function dropThumb(id){thumbs.delete(id)}
+function showErr(m){let b=$('err');if(!b){b=document.createElement('div');b.id='err';b.style.cssText='position:fixed;bottom:10px;right:10px;max-width:360px;background:#b91c1c;color:#fff;padding:10px 12px;border-radius:8px;font-size:13px;z-index:9999;cursor:pointer';b.onclick=()=>b.remove();document.body.appendChild(b)}b.textContent='Có lỗi: '+m+' (bấm để tắt)'}
+window.addEventListener('error',e=>showErr(e.message));
+window.addEventListener('unhandledrejection',e=>showErr((e.reason&&e.reason.message)||String(e.reason)));
 function draw(){
  $('locs').innerHTML='';
  order().forEach(l=>{const d=document.createElement('div');d.className='loc'+(l.id===cur?' on':'');
   const tot=count(l.id)+locs.filter(c=>c.parent===l.id).reduce((a,c)=>a+count(c.id),0);
   d.innerHTML='<span></span><small>'+tot+'</small>';d.firstChild.textContent=lbl(l)+(l.phone?' · '+l.phone:'');if(l.parent)d.style.paddingLeft='24px';
-  d.onclick=()=>{cur=l.id;draw()};$('locs').appendChild(d)});
+  d.onclick=()=>{cur=l.id;view='photos';draw()};$('locs').appendChild(d)});
+ $('vp').className=view==='photos'?'p':'';$('vm').className=view==='map'?'p':'';
+ $('ovw').hidden=view!=='map';
+ if(view==='map'){$('work').hidden=true;$('empty').hidden=true;showBig();return}
  const L=findL(cur);
  $('empty').hidden=!!L;$('work').hidden=!L;
  if(!L)return;
  $('tt').textContent=full(L);$('sub').hidden=cur==='none'||!!L.parent;
  $('info').hidden=cur==='none';$('ph').value=L.phone||'';$('nt').value=L.note||'';
  $('ren').hidden=$('del').hidden=cur==='none';
+ $('mapbox').hidden=cur==='none';
+ if(cur!=='none'){$('mq').value=L.addr||'';$('mhint').textContent=hasLL(L)?'Kéo ghim hoặc bấm lên bản đồ để chỉnh vị trí.':'Chưa có ghim: bấm "Tìm vị trí" hoặc bấm trực tiếp lên bản đồ.';showMini(L)}
  const g=$('grid');g.innerHTML='';
  imgs.filter(i=>i.loc===cur).sort((a,b)=>a.t-b.t).forEach(i=>{
-  const u=URL.createObjectURL(i.blob);const d=document.createElement('div');d.className='it';
-  d.innerHTML='<img src="'+u+'"><div><span></span><button title="Xóa">✕</button></div><div><select style="width:100%;font-size:12px"></select></div>';
+  const d=document.createElement('div');d.className='it';
+  d.innerHTML='<img alt="" loading="lazy" title="Bấm để xem ảnh lớn" style="cursor:zoom-in"><div><span></span><button title="Xóa">✕</button></div><div><select style="width:100%;font-size:12px"></select></div>';
   d.querySelector('span').textContent=i.name;
+  const im=d.querySelector('img');thumbURL(i).then(u=>{im.src=u});im.onclick=()=>window.open(URL.createObjectURL(i.blob),'_blank');
   const sel=d.querySelector('select');
   order().forEach(l=>{const o=document.createElement('option');o.value=l.id;o.textContent=(l.id===i.loc?'📍 ':'➜ ')+lbl(l);if(l.id===i.loc)o.selected=true;sel.appendChild(o)});
   sel.onchange=async()=>{const T=findL(sel.value);i.loc=T.id;i.name=mkName(T,i.name.split('.').pop(),i);await tx('imgs','readwrite',s=>s.put(i));if(dir&&T.id!=='none')await saveOne(i,T).catch(()=>{});draw()};
-  d.querySelector('button').onclick=async()=>{if(!confirm('Xóa ảnh này?'))return;await tx('imgs','readwrite',s=>s.delete(i.id));imgs=imgs.filter(x=>x.id!==i.id);draw()};
+  d.querySelector('button').onclick=async()=>{if(!confirm('Xóa ảnh này?'))return;await tx('imgs','readwrite',s=>s.delete(i.id));dropThumb(i.id);imgs=imgs.filter(x=>x.id!==i.id);draw()};
   g.appendChild(d)});
 }
 async function addLoc(){
@@ -115,7 +161,7 @@ $('ren').onclick=async()=>{const L=findL(cur);const n=prompt('Tên mới:',L.nam
 $('del').onclick=async()=>{const L=findL(cur);const kids=locs.filter(c=>c.parent===L.id);
  if(!confirm('Xóa "'+L.name+(kids.length?'", các địa chỉ con':'')+' và toàn bộ ảnh trong đó?'))return;
  const ids=[L.id,...kids.map(c=>c.id)];
- for(const i of imgs.filter(i=>ids.includes(i.loc)))await tx('imgs','readwrite',s=>s.delete(i.id));
+ for(const i of imgs.filter(i=>ids.includes(i.loc))){await tx('imgs','readwrite',s=>s.delete(i.id));dropThumb(i.id)}
  for(const id of ids)await tx('locs','readwrite',s=>s.delete(id));
  imgs=imgs.filter(i=>!ids.includes(i.loc));locs=locs.filter(l=>!ids.includes(l.id));cur='none';draw()};
 $('sub').onclick=async()=>{const P=findL(cur);const n=prompt('Địa chỉ cụ thể trong "'+P.name+'" (vd: Quỳnh Phụ):');if(!n||!n.trim())return;
@@ -152,8 +198,8 @@ async function saveOne(i,L){
  }
 }
 async function saveInfo(X){
- if(!X.phone&&!X.note)return;
- const b=new Blob(['Địa điểm: '+full(X)+'\nSố điện thoại: '+(X.phone||'')+'\nGhi chú: '+(X.note||'')+'\n'],{type:'text/plain'});
+ if(!X.phone&&!X.note&&!hasLL(X)&&!X.addr)return;
+ const b=new Blob(['Địa điểm: '+full(X)+'\nSố điện thoại: '+(X.phone||'')+'\nGhi chú: '+(X.note||'')+'\nĐịa chỉ: '+(X.addr||'')+'\nVị trí: '+(hasLL(X)?'https://www.google.com/maps?q='+X.lat+','+X.lng:'')+'\n'],{type:'text/plain'});
  if(dir){let sub=dir;for(const q of parts(X))sub=await sub.getDirectoryHandle(q,{create:true});
   const w=await (await sub.getFileHandle('thong-tin.txt',{create:true})).createWritable();await w.write(b);await w.close()}
  else{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='thong-tin_'+fname(X)+'.txt';document.body.appendChild(a);a.click();a.remove();await new Promise(r=>setTimeout(r,250))}
@@ -168,6 +214,84 @@ $('all').onclick=async()=>{let n=0;for(const L of [NONE,...locs.filter(l=>!l.par
 $('pick').onclick=async()=>{
  if(!window.showDirectoryPicker){alert('Trình duyệt này không hỗ trợ chọn thư mục. Hãy dùng Chrome hoặc Edge — hoặc cứ bấm Lưu, ảnh sẽ tải về Downloads.');return}
  try{dir=await showDirectoryPicker({mode:'readwrite'});$('st').textContent='Đang lưu vào thư mục: '+dir.name+' (mỗi địa điểm một thư mục con). Ảnh mới thêm sẽ tự lưu.'}catch(e){}
+};
+// ===== Bản đồ =====
+let mini=null,miniMark=null,big=null,bigLayer=null;
+const NOMAP='<div style="padding:20px;color:var(--mu)">Cần có mạng để hiện bản đồ.</div>';
+function pinIcon(n){return LF.divIcon({className:'pinwrap',html:'<div class="pin">📍'+(n?'<b>'+n+'</b>':'')+'</div>',iconSize:[30,30],iconAnchor:[15,28]})}
+function addTiles(map){
+ let fail=0;
+ const osm=LF.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+ osm.on('tileerror',()=>{if(++fail===3){map.removeLayer(osm);LF.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:19,subdomains:'abcd',attribution:'© OpenStreetMap © CARTO'}).addTo(map)}});
+}
+const qFor=X=>(X.addr||X.name)+(PA(X)?', '+PA(X).name:'');
+async function geocode(q){
+ const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=vn&accept-language=vi&q='+encodeURIComponent(q));
+ const j=await r.json();return j[0]?{lat:+j[0].lat,lng:+j[0].lon}:null;
+}
+async function setPos(X,lat,lng){X.lat=lat;X.lng=lng;await tx('locs','readwrite',s=>s.put(X));$('mhint').textContent='Đã lưu vị trí ✔ (kéo ghim hoặc bấm lên bản đồ để chỉnh).'}
+function showMini(X){
+ if(!LF){$('minimap').innerHTML=NOMAP;return}
+ if(!mini){
+  mini=LF.map('minimap').setView([16,106],5);addTiles(mini);
+  mini.on('click',async e=>{const Y=findL(cur);if(!Y||Y.id==='none'||view!=='photos')return;await setPos(Y,e.latlng.lat,e.latlng.lng);showMini(Y)});
+ }
+ setTimeout(()=>{
+  mini.invalidateSize();
+  if(miniMark){mini.removeLayer(miniMark);miniMark=null}
+  if(hasLL(X)){
+   miniMark=LF.marker([X.lat,X.lng],{draggable:true,icon:pinIcon(0)}).addTo(mini);
+   miniMark.on('dragend',async()=>{const q=miniMark.getLatLng();await setPos(X,q.lat,q.lng)});
+   mini.setView([X.lat,X.lng],X.parent?14:9);
+  }else{const P=PA(X);if(P&&hasLL(P))mini.setView([P.lat,P.lng],10);else mini.setView([16,106],5)}
+ },0);
+}
+function showBig(){
+ if(!LF){$('bigmap').innerHTML=NOMAP;return}
+ if(!big){big=LF.map('bigmap').setView([16,106],5);addTiles(big);bigLayer=LF.layerGroup().addTo(big)}
+ setTimeout(()=>{
+  big.invalidateSize();bigLayer.clearLayers();const pts=[];
+  locs.forEach(X=>{
+   if(!hasLL(X))return;
+   const n=count(X.id)+(X.parent?0:locs.filter(c=>c.parent===X.id).reduce((a,c)=>a+count(c.id),0));
+   const m=LF.marker([X.lat,X.lng],{icon:pinIcon(n)}).addTo(bigLayer);
+   m.bindTooltip(full(X)+(X.phone?' · '+X.phone:'')+' ('+n+' ảnh)');
+   m.on('click',()=>{cur=X.id;view='photos';draw()});
+   pts.push([X.lat,X.lng]);
+  });
+  if(pts.length)big.fitBounds(pts,{padding:[40,40],maxZoom:12});
+  const no=locs.filter(X=>!hasLL(X));
+  $('nopos').textContent=no.length?'Chưa có vị trí: '+no.map(full).join('; ')+'. Bấm "Tìm vị trí cho tất cả", hoặc vào từng địa điểm để đặt ghim.':(locs.length?'Tất cả địa điểm đã có vị trí. Bấm vào ghim để mở ảnh của địa điểm đó.':'Chưa có địa điểm nào.');
+ },0);
+}
+$('vp').onclick=()=>{view='photos';draw()};
+$('vm').onclick=()=>{view='map';draw()};
+$('mq').onchange=async()=>{const X=findL(cur);if(!X||X.id==='none')return;X.addr=$('mq').value.trim();await tx('locs','readwrite',s=>s.put(X))};
+$('find').onclick=async()=>{
+ const X=findL(cur);if(!X||X.id==='none')return;
+ X.addr=$('mq').value.trim();await tx('locs','readwrite',s=>s.put(X));
+ $('mhint').textContent='Đang tìm...';
+ try{
+  let p=await geocode(qFor(X));
+  if(!p&&X.addr){await new Promise(r=>setTimeout(r,1100));p=await geocode(X.name+(PA(X)?', '+PA(X).name:''))}
+  if(!p){$('mhint').textContent='Không tìm thấy. Thử gõ địa chỉ rõ hơn, hoặc bấm trực tiếp lên bản đồ để đặt ghim.';return}
+  await setPos(X,p.lat,p.lng);showMini(X);
+ }catch(e){$('mhint').textContent='Không kết nối được dịch vụ bản đồ. Nếu đã có mạng, có thể trang đang mở trong khung xem trước bị chặn: hãy mở file index.html bằng Chrome, hoặc dùng link GitHub Pages.'}
+};
+$('gm').onclick=()=>{
+ const X=findL(cur);if(!X||X.id==='none')return;
+ const u=hasLL(X)?'https://www.google.com/maps/dir/?api=1&destination='+X.lat+','+X.lng:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(qFor(X)+', Việt Nam');
+ window.open(u,'_blank');
+};
+$('geoall').onclick=async()=>{
+ const no=locs.filter(X=>!hasLL(X));
+ for(const X of no){
+  $('nopos').textContent='Đang tìm: '+full(X)+'...';
+  try{const p=await geocode(qFor(X));if(p)await setPos(X,p.lat,p.lng)}
+  catch(e){$('nopos').textContent='Không kết nối được dịch vụ bản đồ. Nếu đã có mạng, có thể trang đang mở trong khung xem trước bị chặn: hãy mở file index.html bằng Chrome, hoặc dùng link GitHub Pages.';return}
+  await new Promise(r=>setTimeout(r,1100));
+ }
+ showBig();
 };
 load();
 </script>
