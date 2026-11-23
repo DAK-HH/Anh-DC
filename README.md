@@ -8,6 +8,7 @@
 - Hai cấp địa điểm: **Tỉnh** → **Địa chỉ cụ thể** (ví dụ `Hưng Yên` → `Quỳnh Phụ`).
 - Ảnh chỉ biết tỉnh thì để thẳng ở tỉnh; ảnh có địa chỉ thì để vào địa chỉ đó.
 - Mỗi tỉnh / địa chỉ có ô **Số điện thoại** và **Ghi chú**; khi lưu, app ghi thêm file `thong-tin.txt` vào thư mục đó.
+- **Bản đồ:** mỗi địa điểm có bản đồ nhỏ để tìm/đặt ghim (kéo ghim hoặc bấm lên bản đồ để chỉnh), nút chỉ đường Google Maps, và nút **🗺 Bản đồ chung** hiện mọi địa điểm kèm số ảnh (bấm ghim để mở ảnh).
 - Mục **Chưa có địa điểm** để chứa ảnh chưa phân loại, sau đó chuyển sang địa điểm bằng ô chọn dưới mỗi ảnh.
 - Chọn một thư mục trên máy, app tự tạo thư mục con theo địa điểm và tự lưu ảnh mới.
 - Dữ liệu được giữ trong trình duyệt (IndexedDB), đóng mở lại vẫn còn.
@@ -51,5 +52,7 @@ Dữ liệu ảnh vẫn nằm trong trình duyệt của từng người dùng, 
 - Chọn thư mục lưu cần **Chrome / Edge**. Trình duyệt khác vẫn dùng được, nhưng nút Lưu sẽ tải từng ảnh về thư mục Downloads.
 - Chuyển ảnh sang địa điểm khác sau khi đã lưu: file cũ trong thư mục cũ vẫn còn, cần xóa tay.
 - Xóa dữ liệu trình duyệt (cache/site data) sẽ làm mất ảnh chưa lưu ra máy. Nên bấm **Lưu tất cả địa điểm** thường xuyên.
+- Bản đồ cần có mạng (dùng Leaflet, OpenStreetMap). Địa chỉ gõ ở ô tìm kiếm được gửi tới dịch vụ Nominatim của OpenStreetMap để tìm vị trí; số điện thoại và ghi chú không bị gửi đi. Nếu không tìm được đúng địa chỉ, app thử lại với địa chỉ ngắn hơn (bỏ dần phần nhỏ nhất) và báo là vị trí gần đúng. Nơi ở nông thôn có thể lệch, hãy kéo ghim cho đúng. Nền bản đồ và dịch vụ tìm địa chỉ có nguồn dự phòng nếu nguồn chính không truy cập được.
+- Nếu mở file trực tiếp trên máy mà nền bản đồ không hiện, hãy dùng bản GitHub Pages (có địa chỉ https).
 - Chỉ có hai cấp địa điểm.
 - Số điện thoại là thông tin cá nhân của khách: đừng đưa thư mục đã lưu (có `thong-tin.txt`) lên repo công khai.

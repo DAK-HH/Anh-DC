@@ -219,16 +219,50 @@ $('pick').onclick=async()=>{
 let mini=null,miniMark=null,big=null,bigLayer=null;
 const NOMAP='<div style="padding:20px;color:var(--mu)">Cần có mạng để hiện bản đồ.</div>';
 function pinIcon(n){return LF.divIcon({className:'pinwrap',html:'<div class="pin">📍'+(n?'<b>'+n+'</b>':'')+'</div>',iconSize:[30,30],iconAnchor:[15,28]})}
+const TILE_SRC=[
+ {u:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',o:{maxZoom:19,attribution:'© OpenStreetMap'}},
+ {u:'https://tile.openstreetmap.de/{z}/{x}/{y}.png',o:{maxZoom:18,attribution:'© OpenStreetMap'}},
+ {u:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',o:{maxZoom:19,attribution:'Tiles © Esri'}}
+];
 function addTiles(map){
- let fail=0;
- const osm=LF.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
- osm.on('tileerror',()=>{if(++fail===3){map.removeLayer(osm);LF.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{maxZoom:19,subdomains:'abcd',attribution:'© OpenStreetMap © CARTO'}).addTo(map)}});
+ let idx=0,fail=0,layer=null;
+ const use=()=>{
+  if(layer)map.removeLayer(layer);
+  const t=TILE_SRC[idx];layer=LF.tileLayer(t.u,t.o).addTo(map);fail=0;
+  layer.on('tileerror',()=>{if(++fail===4&&idx<TILE_SRC.length-1){idx++;use()}});
+ };
+ use();
 }
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const qFor=X=>(X.addr||X.name)+(PA(X)?', '+PA(X).name:'');
 async function geocode(q){
- const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=vn&accept-language=vi&q='+encodeURIComponent(q));
- const j=await r.json();return j[0]?{lat:+j[0].lat,lng:+j[0].lon}:null;
+ let e1=null,e2=null;
+ try{
+  const r=await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=vn&accept-language=vi&q='+encodeURIComponent(q));
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  const j=await r.json();if(j[0])return{lat:+j[0].lat,lng:+j[0].lon};
+ }catch(e){e1=e}
+ try{
+  const r=await fetch('https://photon.komoot.io/api/?limit=1&q='+encodeURIComponent(q));
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  const j=await r.json();const f=j.features&&j.features[0];
+  if(f)return{lat:f.geometry.coordinates[1],lng:f.geometry.coordinates[0]};
+ }catch(e){e2=e}
+ if(e1&&e2)throw new Error('Nominatim: '+e1.message+' | Photon: '+e2.message);
+ return null;
 }
+async function geocodeSmart(q){
+ const raw=q.split(',').map(t=>t.replace(/[.\s]+$/,'').trim()).filter(Boolean);
+ const parts=raw.filter((t,i)=>i===0||t!==raw[i-1]);
+ for(let k=0;k<Math.min(3,parts.length);k++){
+  const qq=parts.slice(k).join(', ');
+  const r=await geocode(qq);
+  if(r){r.matched=qq;r.exact=k===0;return r}
+  await sleep(1100);
+ }
+ return null;
+}
+const ERRMSG=e=>'Không kết nối được dịch vụ bản đồ ('+((e&&e.message)||e)+'). Có thể mạng, VPN hoặc tiện ích chặn quảng cáo đang chặn openstreetmap.org.';
 async function setPos(X,lat,lng){X.lat=lat;X.lng=lng;await tx('locs','readwrite',s=>s.put(X));$('mhint').textContent='Đã lưu vị trí ✔ (kéo ghim hoặc bấm lên bản đồ để chỉnh).'}
 function showMini(X){
  if(!LF){$('minimap').innerHTML=NOMAP;return}
@@ -272,11 +306,11 @@ $('find').onclick=async()=>{
  X.addr=$('mq').value.trim();await tx('locs','readwrite',s=>s.put(X));
  $('mhint').textContent='Đang tìm...';
  try{
-  let p=await geocode(qFor(X));
-  if(!p&&X.addr){await new Promise(r=>setTimeout(r,1100));p=await geocode(X.name+(PA(X)?', '+PA(X).name:''))}
+  const p=await geocodeSmart(qFor(X));
   if(!p){$('mhint').textContent='Không tìm thấy. Thử gõ địa chỉ rõ hơn, hoặc bấm trực tiếp lên bản đồ để đặt ghim.';return}
   await setPos(X,p.lat,p.lng);showMini(X);
- }catch(e){$('mhint').textContent='Không kết nối được dịch vụ bản đồ. Nếu đã có mạng, có thể trang đang mở trong khung xem trước bị chặn: hãy mở file index.html bằng Chrome, hoặc dùng link GitHub Pages.'}
+  if(!p.exact)$('mhint').textContent='Chỉ tìm được vị trí gần đúng ('+p.matched+'). Hãy kéo ghim đến đúng chỗ.';
+ }catch(e){$('mhint').textContent=ERRMSG(e)}
 };
 $('gm').onclick=()=>{
  const X=findL(cur);if(!X||X.id==='none')return;
@@ -287,9 +321,9 @@ $('geoall').onclick=async()=>{
  const no=locs.filter(X=>!hasLL(X));
  for(const X of no){
   $('nopos').textContent='Đang tìm: '+full(X)+'...';
-  try{const p=await geocode(qFor(X));if(p)await setPos(X,p.lat,p.lng)}
-  catch(e){$('nopos').textContent='Không kết nối được dịch vụ bản đồ. Nếu đã có mạng, có thể trang đang mở trong khung xem trước bị chặn: hãy mở file index.html bằng Chrome, hoặc dùng link GitHub Pages.';return}
-  await new Promise(r=>setTimeout(r,1100));
+  try{const p=await geocodeSmart(qFor(X));if(p)await setPos(X,p.lat,p.lng)}
+  catch(e){$('nopos').textContent=ERRMSG(e);return}
+  await sleep(1100);
  }
  showBig();
 };
