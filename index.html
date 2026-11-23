@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lưu ảnh theo địa điểm</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E📍%3C/text%3E%3C/svg%3E">
+<style>
+:root{--bg:#f6f5f1;--card:#fff;--tx:#222;--mu:#777;--ac:#c2410c;--bd:#e3e0d8}
+@media(prefers-color-scheme:dark){:root{--bg:#1c1b19;--card:#262522;--tx:#eee;--mu:#999;--ac:#fb923c;--bd:#3a3834}}
+*{box-sizing:border-box}
+body{margin:0;font:15px system-ui,sans-serif;background:var(--bg);color:var(--tx);height:100vh;display:flex}
+aside{width:260px;border-right:1px solid var(--bd);padding:14px;display:flex;flex-direction:column;gap:10px;overflow:auto}
+main{flex:1;padding:18px;overflow:auto}
+h1{font-size:17px;margin:0}
+input,button{font:inherit}
+input{width:100%;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--tx)}
+button{padding:8px 12px;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--tx);cursor:pointer}
+button.p{background:var(--ac);color:#fff;border-color:var(--ac)}
+button:hover{opacity:.85}
+.loc{padding:9px 10px;border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;gap:6px}
+.loc.on{background:var(--ac);color:#fff}
+.loc small{opacity:.75}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+#drop{border:2px dashed var(--bd);border-radius:12px;padding:30px;text-align:center;color:var(--mu);margin-bottom:14px;background:var(--card)}
+#drop.over{border-color:var(--ac);color:var(--ac)}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.it{background:var(--card);border:1px solid var(--bd);border-radius:10px;overflow:hidden;font-size:12px}
+.it img{width:100%;height:130px;object-fit:contain;background:#0001;display:block}
+.it div{padding:6px 8px;display:flex;justify-content:space-between;align-items:center;gap:4px}
+.it span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.it button{padding:2px 7px;font-size:12px}
+#st{color:var(--mu);font-size:13px}
+@media(max-width:700px){body{flex-direction:column;height:auto}aside{width:100%;border:0}}
+</style>
+</head>
+<body>
+<aside>
+  <h1>Địa điểm</h1>
+  <div style="display:flex;gap:6px"><input id="nl" placeholder="Tỉnh / địa điểm mới (vd: Hưng Yên)"><button class="p" id="add">+</button></div>
+  <div id="locs"></div>
+  <hr style="width:100%;border:0;border-top:1px solid var(--bd)">
+  <button id="pick">📁 Chọn thư mục lưu trên máy</button>
+  <div id="st">Chưa chọn thư mục — ảnh sẽ tải về thư mục Downloads.</div>
+  <button id="all">Lưu tất cả địa điểm</button>
+</aside>
+<main>
+  <div id="empty"></div>
+  <div id="work" hidden>
+    <div class="row"><h1 id="tt" style="flex:1"></h1>
+      <button id="sub" class="p">+ Địa chỉ cụ thể</button>
+      <button id="save">Lưu địa điểm này</button>
+      <button id="ren">Đổi tên</button>
+      <button id="del">Xóa địa điểm</button></div>
+    <div class="row" id="info"><input id="ph" type="tel" placeholder="Số điện thoại" style="max-width:220px"><input id="nt" placeholder="Ghi chú (tên khách, nhu cầu...)" style="flex:1;min-width:200px"></div>
+    <div id="drop">Dán ảnh (Ctrl+V), kéo thả ảnh vào đây, hoặc <button id="file">chọn ảnh</button></div>
+    <div id="grid"></div>
+  </div>
+</main>
+<input type="file" id="fi" accept="image/*" multiple hidden>
+<script>
+const $=id=>document.getElementById(id);
+let db,locs=[],imgs=[],cur='none',dir=null;
+const NONE={id:'none',name:'Chưa có địa điểm'};
+const findL=id=>id==='none'?NONE:locs.find(l=>l.id===id);
+const PA=L=>L.parent&&findL(L.parent);
+const fname=L=>PA(L)?safe(PA(L).name)+'_'+safe(L.name):safe(L.name);
+const parts=L=>PA(L)?[safe(PA(L).name),safe(L.name)]:[safe(L.name)];
+const lbl=L=>L.parent?'└ '+L.name:L.name;
+const full=L=>PA(L)?PA(L).name+' › '+L.name:L.name;
+const order=()=>{const r=[NONE];locs.filter(l=>!l.parent).sort((a,b)=>a.t-b.t).forEach(t=>{r.push(t);locs.filter(c=>c.parent===t.id).sort((a,b)=>a.t-b.t).forEach(c=>r.push(c))});return r};
+function mkName(L,ext,skip){let n=count(L.id)+1,name;do{name=fname(L)+'_'+String(n++).padStart(3,'0')+'.'+ext}while(imgs.some(i=>i.loc===L.id&&i.name===name&&i!==skip));return name}
+const safe=s=>s.replace(/[\\/:*?"<>|]/g,'_').trim()||'khong-ten';
+function open(){return new Promise((ok,no)=>{const r=indexedDB.open('luu-anh',1);
+ r.onupgradeneeded=()=>{r.result.createObjectStore('locs',{keyPath:'id'});r.result.createObjectStore('imgs',{keyPath:'id'})};
+ r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})}
+const tx=(s,m,f)=>new Promise((ok,no)=>{const t=db.transaction(s,m);const q=f(t.objectStore(s));t.oncomplete=()=>ok(q&&q.result);t.onerror=()=>no(t.error)});
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+
+async function load(){
+ try{db=await open();locs=await tx('locs','readonly',s=>s.getAll());imgs=await tx('imgs','readonly',s=>s.getAll())}catch(e){locs=[];imgs=[]}
+ locs.sort((a,b)=>a.t-b.t);cur='none';draw();
+}
+const count=id=>imgs.filter(i=>i.loc===id).length;
+function draw(){
+ $('locs').innerHTML='';
+ order().forEach(l=>{const d=document.createElement('div');d.className='loc'+(l.id===cur?' on':'');
+  const tot=count(l.id)+locs.filter(c=>c.parent===l.id).reduce((a,c)=>a+count(c.id),0);
+  d.innerHTML='<span></span><small>'+tot+'</small>';d.firstChild.textContent=lbl(l)+(l.phone?' · '+l.phone:'');if(l.parent)d.style.paddingLeft='24px';
+  d.onclick=()=>{cur=l.id;draw()};$('locs').appendChild(d)});
+ const L=findL(cur);
+ $('empty').hidden=!!L;$('work').hidden=!L;
+ if(!L)return;
+ $('tt').textContent=full(L);$('sub').hidden=cur==='none'||!!L.parent;
+ $('info').hidden=cur==='none';$('ph').value=L.phone||'';$('nt').value=L.note||'';
+ $('ren').hidden=$('del').hidden=cur==='none';
+ const g=$('grid');g.innerHTML='';
+ imgs.filter(i=>i.loc===cur).sort((a,b)=>a.t-b.t).forEach(i=>{
+  const u=URL.createObjectURL(i.blob);const d=document.createElement('div');d.className='it';
+  d.innerHTML='<img src="'+u+'"><div><span></span><button title="Xóa">✕</button></div><div><select style="width:100%;font-size:12px"></select></div>';
+  d.querySelector('span').textContent=i.name;
+  const sel=d.querySelector('select');
+  order().forEach(l=>{const o=document.createElement('option');o.value=l.id;o.textContent=(l.id===i.loc?'📍 ':'➜ ')+lbl(l);if(l.id===i.loc)o.selected=true;sel.appendChild(o)});
+  sel.onchange=async()=>{const T=findL(sel.value);i.loc=T.id;i.name=mkName(T,i.name.split('.').pop(),i);await tx('imgs','readwrite',s=>s.put(i));if(dir&&T.id!=='none')await saveOne(i,T).catch(()=>{});draw()};
+  d.querySelector('button').onclick=async()=>{if(!confirm('Xóa ảnh này?'))return;await tx('imgs','readwrite',s=>s.delete(i.id));imgs=imgs.filter(x=>x.id!==i.id);draw()};
+  g.appendChild(d)});
+}
+async function addLoc(){
+ const n=$('nl').value.trim();if(!n)return;
+ const l={id:uid(),name:n,t:Date.now()};
+ await tx('locs','readwrite',s=>s.put(l));locs.push(l);cur=l.id;$('nl').value='';draw();
+}
+$('add').onclick=addLoc;$('nl').onkeydown=e=>{if(e.key==='Enter')addLoc()};
+$('ren').onclick=async()=>{const L=findL(cur);const n=prompt('Tên mới:',L.name);if(!n||!n.trim())return;L.name=n.trim();await tx('locs','readwrite',s=>s.put(L));draw()};
+$('del').onclick=async()=>{const L=findL(cur);const kids=locs.filter(c=>c.parent===L.id);
+ if(!confirm('Xóa "'+L.name+(kids.length?'", các địa chỉ con':'')+' và toàn bộ ảnh trong đó?'))return;
+ const ids=[L.id,...kids.map(c=>c.id)];
+ for(const i of imgs.filter(i=>ids.includes(i.loc)))await tx('imgs','readwrite',s=>s.delete(i.id));
+ for(const id of ids)await tx('locs','readwrite',s=>s.delete(id));
+ imgs=imgs.filter(i=>!ids.includes(i.loc));locs=locs.filter(l=>!ids.includes(l.id));cur='none';draw()};
+$('sub').onclick=async()=>{const P=findL(cur);const n=prompt('Địa chỉ cụ thể trong "'+P.name+'" (vd: Quỳnh Phụ):');if(!n||!n.trim())return;
+ const l={id:uid(),name:n.trim(),parent:P.id,t:Date.now()};await tx('locs','readwrite',s=>s.put(l));locs.push(l);cur=l.id;draw()};
+
+async function addBlobs(blobs){
+ const L=findL(cur)||NONE;
+ for(const b of blobs){
+  if(!b.type.startsWith('image/'))continue;
+  const ext=(b.type.split('/')[1]||'png').replace('jpeg','jpg').replace('+xml','');
+  const name=mkName(L,ext);
+  const it={id:uid(),loc:L.id,name,blob:b,t:Date.now()};
+  await tx('imgs','readwrite',s=>s.put(it));imgs.push(it);
+  if(dir&&L.id!=='none')await saveOne(it,L).catch(()=>{});
+ }
+ draw();
+}
+document.addEventListener('paste',e=>{const f=[...(e.clipboardData?.files||[])];if(f.length){e.preventDefault();addBlobs(f)}});
+const dz=$('drop');
+['dragover','dragenter'].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();dz.classList.add('over')}));
+['dragleave','drop'].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove('over')}));
+document.addEventListener('drop',e=>addBlobs([...e.dataTransfer.files]));
+$('file').onclick=()=>$('fi').click();
+$('fi').onchange=e=>{addBlobs([...e.target.files]);e.target.value=''};
+
+async function saveOne(i,L){
+ if(dir){
+  let sub=dir;for(const q of parts(L))sub=await sub.getDirectoryHandle(q,{create:true});
+  const fh=await sub.getFileHandle(i.name,{create:true});
+  const w=await fh.createWritable();await w.write(i.blob);await w.close();
+ }else{
+  const a=document.createElement('a');a.href=URL.createObjectURL(i.blob);a.download=i.name;
+  document.body.appendChild(a);a.click();a.remove();await new Promise(r=>setTimeout(r,250));
+ }
+}
+async function saveInfo(X){
+ if(!X.phone&&!X.note)return;
+ const b=new Blob(['Địa điểm: '+full(X)+'\nSố điện thoại: '+(X.phone||'')+'\nGhi chú: '+(X.note||'')+'\n'],{type:'text/plain'});
+ if(dir){let sub=dir;for(const q of parts(X))sub=await sub.getDirectoryHandle(q,{create:true});
+  const w=await (await sub.getFileHandle('thong-tin.txt',{create:true})).createWritable();await w.write(b);await w.close()}
+ else{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='thong-tin_'+fname(X)+'.txt';document.body.appendChild(a);a.click();a.remove();await new Promise(r=>setTimeout(r,250))}
+}
+['ph','nt'].forEach(id=>{
+ $(id).oninput=async()=>{const L=findL(cur);if(!L||L.id==='none')return;L.phone=$('ph').value.trim();L.note=$('nt').value.trim();await tx('locs','readwrite',s=>s.put(L))};
+ $(id).onchange=()=>{const L=findL(cur);if(dir&&L&&L.id!=='none')saveInfo(L).catch(()=>{});draw()};
+});
+async function saveLoc(L){let n=0;for(const X of [L,...locs.filter(c=>c.parent===L.id)]){await saveInfo(X);for(const i of imgs.filter(i=>i.loc===X.id)){await saveOne(i,X);n++}}return n}
+$('save').onclick=async()=>{const L=findL(cur);const n=await saveLoc(L);$('st').textContent='Đã lưu '+n+' ảnh của "'+L.name+'".'};
+$('all').onclick=async()=>{let n=0;for(const L of [NONE,...locs.filter(l=>!l.parent)])n+=await saveLoc(L);$('st').textContent='Đã lưu '+n+' ảnh.'};
+$('pick').onclick=async()=>{
+ if(!window.showDirectoryPicker){alert('Trình duyệt này không hỗ trợ chọn thư mục. Hãy dùng Chrome hoặc Edge — hoặc cứ bấm Lưu, ảnh sẽ tải về Downloads.');return}
+ try{dir=await showDirectoryPicker({mode:'readwrite'});$('st').textContent='Đang lưu vào thư mục: '+dir.name+' (mỗi địa điểm một thư mục con). Ảnh mới thêm sẽ tự lưu.'}catch(e){}
+};
+load();
+</script>
+</body>
+</html>
