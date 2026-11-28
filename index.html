@@ -42,6 +42,50 @@ button:hover{opacity:.85}
 #minimap{height:420px}
 #minimap.tall{height:75vh}
 @media(max-width:700px){body{flex-direction:column;height:auto}aside{width:100%;border:0}}
+
+.it .bt{overflow:visible;display:flex;gap:4px;flex:none}
+#lb{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:50;display:flex;flex-direction:column}
+#lb .bar{display:flex;gap:8px;align-items:center;padding:10px 14px;color:#fff}
+#lb .bar span{flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#lb button{background:#ffffff22;color:#fff;border-color:#ffffff40}
+#lbw{flex:1;min-height:0;overflow:auto;display:flex;align-items:center;justify-content:center}
+#lbi{max-width:100%;max-height:100%;object-fit:contain;cursor:zoom-in}
+#lbw.z{display:block}
+#lbw.z #lbi{max-width:none;max-height:none;cursor:zoom-out}
+#lb .nv{position:fixed;top:50%;transform:translateY(-50%);font-size:28px;padding:8px 14px;z-index:2}
+#lb .nv.l{left:10px}#lb .nv.r{right:10px}
+#toastP{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#15803d;color:#fff;padding:8px 18px;border-radius:99px;font-weight:600;opacity:0;pointer-events:none;transition:opacity .2s;z-index:60;max-width:90vw;text-align:center}
+#toastP.on{opacity:1}
+#cx{position:fixed;inset:0;background:#0008;z-index:45;display:grid;place-items:center}
+.cxb{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px 18px;width:min(760px,94vw);max-height:90vh;overflow:auto}
+.cxb h2{margin:0 0 4px;font-size:18px}
+.cxb label{display:flex;gap:6px;align-items:center;font-size:14px}
+#cxg{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin:10px 0}
+.cxh{grid-column:1/-1;font-size:13px;font-weight:700;margin-top:6px}
+.cxi{position:relative;border:3px solid var(--bd);border-radius:8px;overflow:hidden;cursor:pointer;opacity:.55}
+.cxi.on{border-color:var(--ac);opacity:1}
+.cxi img{width:100%;height:80px;object-fit:cover;display:block}
+.cxi b{position:absolute;top:4px;right:4px;background:var(--ac);color:#fff;border-radius:50%;width:20px;height:20px;font-size:12px;display:none;place-items:center}
+.cxi.on b{display:grid}
+#pa{display:none}
+.loc.dh{color:var(--mu);font-size:13px;margin-top:8px;border-top:1px solid var(--bd);border-radius:0 0 8px 8px}
+#doneBar{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:8px 12px;margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+#xbar{position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:40;background:var(--card);border:1px solid var(--ac);border-radius:12px;padding:10px 14px;box-shadow:0 6px 24px #0003;display:flex;gap:10px;align-items:center;flex-wrap:wrap;max-width:92vw}
+@page{margin:12mm}
+@media print{
+ body>*:not(#pa){display:none!important}
+ body{display:block!important;height:auto!important;background:#fff!important;color:#000!important}
+ #pa{display:block!important;color:#000;font-family:system-ui,"Segoe UI",sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+ #pa h1{font-size:20px;margin:0 0 4px}
+ #pa .info{font-size:13px;margin:0 0 3px}
+ #pa .pg{display:grid;grid-template-columns:repeat(var(--cols,2),1fr);gap:6mm;margin-top:8px}
+ #pa h2{font-size:16px;margin:0 0 6px}
+ #pa figure{margin:0;break-inside:avoid}
+ #pa img{width:100%;max-height:var(--mh,105mm);object-fit:contain;background:#f3f3f3}
+ #pa figcaption{font-size:11px;color:#555}
+ #pa .psec{margin-bottom:10mm}
+ #pa .psec+.psec{break-before:page}
+}
 </style>
 </head>
 <body>
@@ -54,6 +98,8 @@ button:hover{opacity:.85}
   <button id="pick">📁 Chọn thư mục lưu trên máy</button>
   <div id="st">Chưa chọn thư mục — ảnh sẽ tải về thư mục Downloads.</div>
   <button id="all">Lưu tất cả địa điểm</button>
+  <button id="pdfall">📄 Xuất PDF mục chưa xuất</button>
+  <button id="expk">👤 Xuất sang Hồ sơ khách hàng</button>
 </aside>
 <main>
   <div id="empty"></div>
@@ -66,8 +112,11 @@ button:hover{opacity:.85}
     <div class="row"><h1 id="tt" style="flex:1"></h1>
       <button id="sub" class="p">+ Địa chỉ cụ thể</button>
       <button id="save">Lưu địa điểm này</button>
+      <button id="pdf">📄 Xuất PDF</button>
+      <button id="cust">📤 Xuất cho khách</button>
       <button id="ren">Đổi tên</button>
       <button id="del">Xóa địa điểm</button></div>
+    <div id="doneBar" class="hint" hidden></div>
     <div class="row" id="info"><input id="ph" type="tel" placeholder="Số điện thoại" style="max-width:220px"><input id="nt" placeholder="Ghi chú (tên khách, nhu cầu...)" style="flex:1;min-width:200px"></div>
     <div id="mapbox">
       <div class="row" style="margin-bottom:8px"><input id="mq" placeholder="Địa chỉ để tìm trên bản đồ (bỏ trống = dùng tên địa điểm)" style="flex:1;min-width:220px"><button id="find">🔍 Tìm vị trí</button><button id="gm">Chỉ đường (Google Maps)</button><button id="tg">⤢ Phóng to</button></div>
@@ -78,10 +127,22 @@ button:hover{opacity:.85}
     <div id="grid"></div>
   </div>
 </main>
+<div id="pa"></div>
+<div id="lb" hidden><div class="bar"><span id="lbn"></span><button id="lbc">📋 Sao chép ảnh</button><button id="lbd">⬇ Tải về</button><button id="lbx">✕ Đóng</button></div><div id="lbw"><img id="lbi" alt=""></div><button class="nv l" id="lbl">‹</button><button class="nv r" id="lbr">›</button></div>
+<div id="cx" hidden><div class="cxb">
+  <h2>📤 Xuất PDF cho khách</h2>
+  <p class="hint">PDF gửi khách chỉ có ảnh bạn chọn. Không có số điện thoại, ghi chú nội bộ, tên file hay link vị trí.</p>
+  <div class="row" style="margin-bottom:8px"><label style="flex:1;min-width:220px">Tiêu đề <input id="cxt" placeholder="Tên công trình / tên khách"></label></div>
+  <div class="row"><label><input type="checkbox" id="cxa" style="width:auto"> Kèm địa chỉ</label><label><input type="checkbox" id="cxn" style="width:auto"> Đánh số ảnh</label><label>Ảnh mỗi hàng <select id="cxc" style="width:auto;padding:6px"><option>1</option><option selected>2</option><option>3</option></select></label></div>
+  <div id="cxg"></div>
+  <div class="row"><button id="cxall">Chọn tất cả / bỏ chọn</button><span style="flex:1"></span><button id="cxno">Hủy</button><button id="cxgo" class="p">Xuất PDF</button></div>
+</div></div>
+<div id="toastP"></div>
+<div id="xbar" hidden><span id="xtx"></span><button id="xok" class="p">✔ Chuyển vào “Đã xuất PDF”</button><button id="xno">Để lại</button></div>
 <input type="file" id="fi" accept="image/*" multiple hidden>
 <script>
 const $=id=>document.getElementById(id);
-let db,locs=[],imgs=[],cur='none',dir=null,view='photos';
+let db,locs=[],imgs=[],cur='none',dir=null,view='photos',showDone=false;
 const LF=window.L;
 const hasLL=X=>typeof X.lat==='number'&&typeof X.lng==='number';
 const NONE={id:'none',name:'Chưa có địa điểm'};
@@ -126,10 +187,19 @@ window.addEventListener('error',e=>showErr(e.message));
 window.addEventListener('unhandledrejection',e=>showErr((e.reason&&e.reason.message)||String(e.reason)));
 function draw(){
  $('locs').innerHTML='';
- order().forEach(l=>{const d=document.createElement('div');d.className='loc'+(l.id===cur?' on':'');
+ order().filter(l=>!l.done).forEach(l=>{const d=document.createElement('div');d.className='loc'+(l.id===cur?' on':'');
   const tot=count(l.id)+locs.filter(c=>c.parent===l.id).reduce((a,c)=>a+count(c.id),0);
   d.innerHTML='<span></span><small>'+tot+'</small>';d.firstChild.textContent=lbl(l)+(l.phone?' · '+l.phone:'');if(l.parent)d.style.paddingLeft='24px';
   d.onclick=()=>{cur=l.id;view='photos';draw()};$('locs').appendChild(d)});
+ const dn=locs.filter(l=>l.done).sort((a,b)=>(b.doneAt||0)-(a.doneAt||0));
+ if(dn.length){
+  const h=document.createElement('div');h.className='loc dh';h.innerHTML='<span></span><small></small>';
+  h.firstChild.textContent=(showDone?'▾ ':'▸ ')+'📁 Đã xuất PDF';h.lastChild.textContent=dn.length;
+  h.onclick=()=>{showDone=!showDone;draw()};$('locs').appendChild(h);
+  if(showDone)dn.forEach(l=>{const d=document.createElement('div');d.className='loc'+(l.id===cur?' on':'');d.style.paddingLeft='20px';
+   d.innerHTML='<span></span><small>'+count(l.id)+'</small>';d.firstChild.textContent=full(l);
+   d.onclick=()=>{cur=l.id;view='photos';draw()};$('locs').appendChild(d)});
+ }
  $('vp').className=view==='photos'?'p':'';$('vm').className=view==='map'?'p':'';
  $('ovw').hidden=view!=='map';
  if(view==='map'){$('work').hidden=true;$('empty').hidden=true;showBig();return}
@@ -140,17 +210,23 @@ function draw(){
  $('info').hidden=cur==='none';$('ph').value=L.phone||'';$('nt').value=L.note||'';
  $('ren').hidden=$('del').hidden=cur==='none';
  $('mapbox').hidden=cur==='none';
+ {const db=$('doneBar');db.hidden=!(cur!=='none'&&L.done);
+  if(!db.hidden){db.innerHTML='';const sp=document.createElement('span');
+   sp.textContent='📁 Đã xuất PDF'+(L.doneAt?' ngày '+new Date(L.doneAt).toLocaleDateString('vi-VN'):'')+'. Mục này không bị xuất lại khi bấm “Xuất PDF mục chưa xuất”.';
+   const bt=document.createElement('button');bt.textContent='↩ Đưa ra khỏi thư mục';bt.onclick=async()=>{await setDone(L,false);toast('Đã đưa ra khỏi “Đã xuất PDF”.');draw()};
+   db.append(sp,bt)}}
  if(cur!=='none'){$('mq').value=L.addr||'';$('mhint').textContent=hasLL(L)?'Kéo ghim hoặc bấm lên bản đồ để chỉnh vị trí.':'Chưa có ghim: bấm "Tìm vị trí" hoặc bấm trực tiếp lên bản đồ.';showMini(L)}
  const g=$('grid');g.innerHTML='';
- imgs.filter(i=>i.loc===cur).sort((a,b)=>a.t-b.t).forEach(i=>{
+ const LST=imgs.filter(i=>i.loc===cur).sort((a,b)=>a.t-b.t);
+ LST.forEach((i,ix)=>{
   const d=document.createElement('div');d.className='it';
-  d.innerHTML='<img alt="" loading="lazy" title="Bấm để xem ảnh lớn" style="cursor:zoom-in"><div><span></span><button title="Xóa">✕</button></div><div><select style="width:100%;font-size:12px"></select></div>';
+  d.innerHTML='<img alt="" loading="lazy" title="Bấm để xem ảnh lớn" style="cursor:zoom-in"><div><span></span><span class="bt"><button class="cpi" title="Sao chép ảnh">📋</button><button class="rm" title="Xóa">✕</button></span></div><div><select style="width:100%;font-size:12px"></select></div>';
   d.querySelector('span').textContent=i.name;
-  const im=d.querySelector('img');thumbURL(i).then(u=>{im.src=u});im.onclick=()=>window.open(URL.createObjectURL(i.blob),'_blank');
+  const im=d.querySelector('img');thumbURL(i).then(u=>{im.src=u});im.onclick=()=>openLB(LST,ix);d.querySelector('.cpi').onclick=e=>{e.stopPropagation();copyImg(i)};
   const sel=d.querySelector('select');
   order().forEach(l=>{const o=document.createElement('option');o.value=l.id;o.textContent=(l.id===i.loc?'📍 ':'➜ ')+lbl(l);if(l.id===i.loc)o.selected=true;sel.appendChild(o)});
-  sel.onchange=async()=>{const T=findL(sel.value);i.loc=T.id;i.name=mkName(T,i.name.split('.').pop(),i);await tx('imgs','readwrite',s=>s.put(i));if(dir&&T.id!=='none')await saveOne(i,T).catch(()=>{});draw()};
-  d.querySelector('button').onclick=async()=>{if(!confirm('Xóa ảnh này?'))return;await tx('imgs','readwrite',s=>s.delete(i.id));dropThumb(i.id);imgs=imgs.filter(x=>x.id!==i.id);draw()};
+  sel.onchange=async()=>{const T=findL(sel.value);if(T.done)await setDone(T,false);i.loc=T.id;i.name=mkName(T,i.name.split('.').pop(),i);await tx('imgs','readwrite',s=>s.put(i));if(dir&&T.id!=='none')await saveOne(i,T).catch(()=>{});draw()};
+  d.querySelector('.rm').onclick=async()=>{if(!confirm('Xóa ảnh này?'))return;await tx('imgs','readwrite',s=>s.delete(i.id));dropThumb(i.id);imgs=imgs.filter(x=>x.id!==i.id);draw()};
   g.appendChild(d)});
 }
 async function addLoc(){
@@ -167,7 +243,7 @@ $('del').onclick=async()=>{const L=findL(cur);const kids=locs.filter(c=>c.parent
  for(const id of ids)await tx('locs','readwrite',s=>s.delete(id));
  imgs=imgs.filter(i=>!ids.includes(i.loc));locs=locs.filter(l=>!ids.includes(l.id));cur='none';draw()};
 $('sub').onclick=async()=>{const P=findL(cur);const n=prompt('Địa chỉ cụ thể trong "'+P.name+'" (vd: Quỳnh Phụ):');if(!n||!n.trim())return;
- const l={id:uid(),name:n.trim(),parent:P.id,t:Date.now()};await tx('locs','readwrite',s=>s.put(l));locs.push(l);cur=l.id;draw()};
+ const l={id:uid(),name:n.trim(),parent:P.id,t:Date.now()};await tx('locs','readwrite',s=>s.put(l));if(P.done)await setDone(P,false);locs.push(l);cur=l.id;draw()};
 
 async function addBlobs(blobs){
  const L=findL(cur)||NONE;
@@ -179,6 +255,7 @@ async function addBlobs(blobs){
   await tx('imgs','readwrite',s=>s.put(it));imgs.push(it);
   if(dir&&L.id!=='none')await saveOne(it,L).catch(()=>{});
  }
+ if(L.done){await setDone(L,false);toast('Địa điểm này có ảnh mới nên được đưa ra khỏi “Đã xuất PDF”.')}
  draw();
 }
 document.addEventListener('paste',e=>{const f=[...(e.clipboardData?.files||[])];if(f.length){e.preventDefault();addBlobs(f)}});
@@ -329,6 +406,193 @@ $('geoall').onclick=async()=>{
   await sleep(1100);
  }
  showBig();
+};
+// ===== Xem ảnh lớn, sao chép ảnh, xuất PDF =====
+let tmr;
+function toast(m){const t=$('toastP');t.textContent=m;t.classList.add('on');clearTimeout(tmr);tmr=setTimeout(()=>t.classList.remove('on'),2200)}
+async function toPNG(b){
+ if(b.type==='image/png')return b;
+ const bm=await createImageBitmap(b);const c=document.createElement('canvas');c.width=bm.width;c.height=bm.height;
+ c.getContext('2d').drawImage(bm,0,0);if(bm.close)bm.close();
+ return await new Promise(r=>c.toBlob(r,'image/png'));
+}
+async function copyImg(i){
+ let png;
+ try{png=await toPNG(i.blob)}catch(e){toast('Không đọc được ảnh này.');return}
+ const tries=[
+  async()=>{await navigator.clipboard.write([new ClipboardItem({'image/png':png})])},
+  async()=>{const P=window.parent;await P.navigator.clipboard.write([new P.ClipboardItem({'image/png':png})])},
+  async()=>{
+   const u=URL.createObjectURL(png);
+   try{
+    const d=document.createElement('div');d.contentEditable='true';d.style.cssText='position:fixed;left:-9999px;top:0';
+    const im=new Image();im.src=u;await im.decode();d.appendChild(im);document.body.appendChild(d);
+    const r=document.createRange();r.selectNode(im);const sel=getSelection();sel.removeAllRanges();sel.addRange(r);
+    const ok=document.execCommand('copy');d.remove();sel.removeAllRanges();
+    if(!ok)throw new Error('copy');
+   }finally{URL.revokeObjectURL(u)}
+  }
+ ];
+ for(const t of tries){
+  try{await t();toast('Đã sao chép ảnh ✓ Dán (Ctrl+V) vào Zalo hoặc tin nhắn');return}catch(e){}
+ }
+ toast('Không sao chép được ảnh. Hãy dùng nút Tải về.');
+}
+let lbL=[],lbI=0,lbU=null;
+function lbShow(){
+ const i=lbL[lbI];if(!i)return;
+ if(lbU)URL.revokeObjectURL(lbU);
+ lbU=URL.createObjectURL(i.blob);
+ const im=$('lbi');
+ im.onerror=()=>{const fr=new FileReader();fr.onload=()=>{im.onerror=null;im.src=fr.result};fr.readAsDataURL(i.blob)};
+ im.src=lbU;$('lbw').classList.remove('z');
+ $('lbn').textContent=i.name+'  ('+(lbI+1)+'/'+lbL.length+')';
+ $('lbl').hidden=$('lbr').hidden=lbL.length<2;
+}
+function openLB(l,ix){lbL=l;lbI=ix;$('lb').hidden=false;lbShow()}
+function closeLB(){$('lb').hidden=true;if(lbU){URL.revokeObjectURL(lbU);lbU=null}$('lbi').removeAttribute('src')}
+$('lbi').onclick=()=>$('lbw').classList.toggle('z');
+$('lbw').onclick=e=>{if(e.target===$('lbw'))closeLB()};
+$('lbx').onclick=closeLB;
+$('lbl').onclick=()=>{lbI=(lbI+lbL.length-1)%lbL.length;lbShow()};
+$('lbr').onclick=()=>{lbI=(lbI+1)%lbL.length;lbShow()};
+$('lbc').onclick=()=>copyImg(lbL[lbI]);
+$('lbd').onclick=()=>{const i=lbL[lbI];const a=document.createElement('a');a.href=URL.createObjectURL(i.blob);a.download=i.name;document.body.appendChild(a);a.click();a.remove()};
+document.addEventListener('keydown',e=>{
+ if($('lb').hidden)return;
+ if(e.key==='Escape')closeLB();
+ if(e.key==='ArrowLeft'&&lbL.length>1)$('lbl').click();
+ if(e.key==='ArrowRight'&&lbL.length>1)$('lbr').click();
+});
+async function small(i){
+ try{
+  const bm=await createImageBitmap(i.blob);const r=Math.min(1,1600/Math.max(bm.width,bm.height));
+  const c=document.createElement('canvas');c.width=Math.round(bm.width*r);c.height=Math.round(bm.height*r);
+  const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(bm,0,0,c.width,c.height);if(bm.close)bm.close();
+  return URL.createObjectURL(await new Promise(res=>c.toBlob(res,'image/jpeg',0.88)));
+ }catch(e){return URL.createObjectURL(i.blob)}
+}
+let pUrls=[],pTitle='',pExp=[];
+async function setDone(X,v){X.done=v;if(v)X.doneAt=Date.now();else delete X.doneAt;await tx('locs','readwrite',s=>s.put(X))}
+function showX(){$('xtx').textContent='Vừa xuất '+pExp.length+' địa điểm ra PDF. Nếu đã lưu xong, chuyển chúng vào “Đã xuất PDF” để lần sau không xuất lại?';$('xbar').hidden=false}
+$('xok').onclick=async()=>{const n=pExp.length;for(const X of pExp)await setDone(X,true);pExp=[];$('xbar').hidden=true;showDone=true;draw();toast('Đã chuyển '+n+' địa điểm vào “Đã xuất PDF”.')};
+$('xno').onclick=()=>{pExp=[];$('xbar').hidden=true};
+async function exportPDF(list,title){
+ const pa=$('pa');pa.innerHTML='';pa.style.removeProperty('--cols');pa.style.removeProperty('--mh');let any=false;const used=[];pExp=[];
+ toast('Đang chuẩn bị PDF…');
+ for(const X of list){
+  const ims=imgs.filter(i=>i.loc===X.id).sort((a,b)=>a.t-b.t);
+  if(!ims.length&&!X.phone&&!X.note)continue;
+  any=true;if(X.id!=='none')used.push(X);
+  const sec=document.createElement('section');sec.className='psec';
+  const h=document.createElement('h1');h.textContent=full(X);sec.appendChild(h);
+  const info=[];
+  if(X.phone)info.push('Số điện thoại: '+X.phone);
+  if(X.addr)info.push('Địa chỉ: '+X.addr);
+  if(X.note)info.push('Ghi chú: '+X.note);
+  if(hasLL(X))info.push('Vị trí: https://www.google.com/maps?q='+X.lat+','+X.lng);
+  info.forEach(t=>{const d=document.createElement('div');d.className='info';d.textContent=t;sec.appendChild(d)});
+  if(ims.length){
+   const g=document.createElement('div');g.className='pg';
+   for(const i of ims){
+    const u=await small(i);pUrls.push(u);
+    const f=document.createElement('figure');f.innerHTML='<img alt=""><figcaption></figcaption>';
+    f.querySelector('img').src=u;f.querySelector('figcaption').textContent=i.name;g.appendChild(f);
+   }
+   sec.appendChild(g);
+  }
+  pa.appendChild(sec);
+ }
+ if(!any){toast('Chưa có ảnh hay thông tin để xuất.');return}
+ await Promise.all([...pa.querySelectorAll('img')].map(im=>im.decode().catch(()=>{})));
+ pExp=used;
+ pTitle=document.title;document.title=title;
+ window.print();
+}
+window.addEventListener('afterprint',()=>{
+ if(pTitle){document.title=pTitle;pTitle=''}
+ $('pa').innerHTML='';pUrls.forEach(u=>URL.revokeObjectURL(u));pUrls=[];
+ if(pExp.length)showX();
+});
+$('pdf').onclick=()=>{const X=findL(cur);if(!X)return;exportPDF([X,...locs.filter(c=>c.parent===X.id&&!c.done)],full(X)+' - ảnh và thông tin')};
+$('pdfall').onclick=()=>exportPDF(order().filter(X=>X.id!=='none'&&!X.done),'Mục mới - ảnh và thông tin');
+// ===== Xuất PDF cho khách =====
+let cxSel=new Set(),cxList=[];
+function openCX(){
+ const X=findL(cur);if(!X||X.id==='none'){toast('Hãy chọn một địa điểm trước.');return}
+ cxList=[X,...locs.filter(c=>c.parent===X.id)].map(g=>({g,ims:imgs.filter(i=>i.loc===g.id).sort((a,b)=>a.t-b.t)})).filter(o=>o.ims.length);
+ if(!cxList.length){toast('Địa điểm này chưa có ảnh.');return}
+ cxSel=new Set(cxList.flatMap(o=>o.ims.map(i=>i.id)));
+ $('cxt').value=full(X);$('cxa').checked=false;$('cxn').checked=false;
+ renderCX();$('cx').hidden=false;
+}
+function renderCX(){
+ const g=$('cxg');g.innerHTML='';
+ cxList.forEach(o=>{
+  if(cxList.length>1){const h=document.createElement('div');h.className='cxh';h.textContent=full(o.g);g.appendChild(h)}
+  o.ims.forEach(i=>{
+   const d=document.createElement('div');d.className='cxi'+(cxSel.has(i.id)?' on':'');d.innerHTML='<img alt=""><b>✓</b>';
+   thumbURL(i).then(u=>{d.querySelector('img').src=u});
+   d.onclick=()=>{if(cxSel.has(i.id))cxSel.delete(i.id);else cxSel.add(i.id);d.classList.toggle('on')};
+   g.appendChild(d);
+  });
+ });
+}
+async function exportCustomer(){
+ const sel=cxList.map(o=>({g:o.g,ims:o.ims.filter(i=>cxSel.has(i.id))})).filter(o=>o.ims.length);
+ if(!sel.length){toast('Hãy chọn ít nhất một ảnh.');return}
+ $('cx').hidden=true;
+ const pa=$('pa');pa.innerHTML='';pExp=[];
+ const cols=+$('cxc').value;pa.style.setProperty('--cols',cols);pa.style.setProperty('--mh',cols===1?'200mm':cols===2?'105mm':'70mm');
+ const title=$('cxt').value.trim(),num=$('cxn').checked,addr=$('cxa').checked;
+ toast('Đang chuẩn bị PDF…');
+ let n=0;
+ for(let k=0;k<sel.length;k++){
+  const o=sel[k];const sec=document.createElement('section');sec.className='psec';
+  if(k===0&&title){const h=document.createElement('h1');h.textContent=title;sec.appendChild(h)}
+  if(k>0||(!title&&sel.length>1)){const h=document.createElement('h2');h.textContent=o.g.parent?o.g.name:full(o.g);sec.appendChild(h)}
+  if(addr&&o.g.addr){const d=document.createElement('div');d.className='info';d.textContent='Địa chỉ: '+o.g.addr;sec.appendChild(d)}
+  const g=document.createElement('div');g.className='pg';
+  for(const i of o.ims){
+   const u=await small(i);pUrls.push(u);n++;
+   const f=document.createElement('figure');f.innerHTML='<img alt=""><figcaption></figcaption>';
+   f.querySelector('img').src=u;
+   if(num)f.querySelector('figcaption').textContent='Ảnh '+n;else f.querySelector('figcaption').remove();
+   g.appendChild(f);
+  }
+  sec.appendChild(g);pa.appendChild(sec);
+ }
+ await Promise.all([...pa.querySelectorAll('img')].map(im=>im.decode().catch(()=>{})));
+ pTitle=document.title;document.title=title||'Ảnh công trình';
+ window.print();
+}
+$('cust').onclick=openCX;
+$('cxno').onclick=()=>{$('cx').hidden=true};
+$('cxall').onclick=()=>{const all=cxList.flatMap(o=>o.ims.map(i=>i.id));if(cxSel.size===all.length)cxSel=new Set();else cxSel=new Set(all);renderCX()};
+$('cxgo').onclick=exportCustomer;
+$('cx').onclick=e=>{if(e.target===$('cx'))$('cx').hidden=true};
+// ===== Xuất sang Hồ sơ khách hàng =====
+async function shrinkBlob(b){
+ const bm=await createImageBitmap(b);const r=Math.min(1,1400/Math.max(bm.width,bm.height));
+ const c=document.createElement('canvas');c.width=Math.max(1,Math.round(bm.width*r));c.height=Math.max(1,Math.round(bm.height*r));
+ c.getContext('2d').drawImage(bm,0,0,c.width,c.height);if(bm.close)bm.close();
+ return c.toDataURL('image/jpeg',0.82);
+}
+$('expk').onclick=async()=>{
+ const st=$('st');st.textContent='Đang gom thông tin...';
+ const out=[];
+ for(const L of order()){
+  if(L.id==='none')continue;
+  const pics=imgs.filter(i=>i.loc===L.id).sort((a,b)=>a.t-b.t);
+  if(!L.phone&&!L.note&&!pics.length)continue;
+  const houses=[];for(const i of pics){try{houses.push(await shrinkBlob(i.blob))}catch(e){}}
+  out.push({name:L.note||L.name,phone:L.phone||'',addr:full(L),houses});
+ }
+ if(!out.length){st.textContent='Chưa có địa điểm nào có số điện thoại, ghi chú hoặc ảnh để xuất.';return}
+ const b=new Blob([JSON.stringify({app:'luu-anh',v:1,customers:out})],{type:'application/json'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='khach_hang.json';
+ document.body.appendChild(a);a.click();a.remove();
+ st.textContent='Đã xuất '+out.length+' khách ra file khach_hang.json (trong thư mục Downloads).';
 };
 load();
 </script>
